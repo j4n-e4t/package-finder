@@ -350,7 +350,7 @@ function Landing() {
         style={{ fontFamily: '"Monaspace Neon", ui-monospace, monospace' }}
         className="font-bold text-fg-strong text-4xl sm:text-5xl md:text-6xl tracking-[-0.04em] m-0 mb-8"
       >
-        pkgs.dev
+        pkgs.one
       </h1>
       <form action="/search" method="get" className="w-full max-w-xl">
         <SearchInput
