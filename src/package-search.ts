@@ -12,10 +12,8 @@ const ARM64_BOTTLE_KEYS = new Set([
   "arm64_big_sur",
 ]);
 
-export const brewTypeValues = ["all", "formula", "cask"] as const;
 export const nixKinds = ["package", "option", "service"] as const;
 
-export type BrewTypeFilter = (typeof brewTypeValues)[number];
 export type NixKind = (typeof nixKinds)[number];
 
 interface BaseSearchResult {
@@ -35,7 +33,7 @@ export interface NixSearchResult extends BaseSearchResult {
 
 export interface BrewSearchResult extends BaseSearchResult {
   ecosystem: "brew";
-  brewType: Exclude<BrewTypeFilter, "all">;
+  brewType: "formula" | "cask";
   token: string;
   homepage: string;
   hasArm64: boolean;
@@ -59,7 +57,7 @@ interface RawBrewResult {
   description: string;
   version: string;
   homepage: string;
-  brewType: Exclude<BrewTypeFilter, "all">;
+  brewType: "formula" | "cask";
   hasArm64: boolean;
 }
 
@@ -279,7 +277,6 @@ export async function searchNix(
 export async function searchBrew(
   query: string,
   aarch64Only: boolean,
-  typeFilter: BrewTypeFilter,
 ): Promise<BrewSearchResult[]> {
   await preloadBrew();
   if (!brewData) return [];
@@ -296,7 +293,6 @@ export async function searchBrew(
   return brewData
     .filter((pkg) => {
       if (aarch64Only && !pkg.hasArm64) return false;
-      if (typeFilter !== "all" && pkg.brewType !== typeFilter) return false;
       return (
         pkg.token.toLowerCase().includes(needle)
         || pkg.name.toLowerCase().includes(needle)
