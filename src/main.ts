@@ -7,6 +7,7 @@ const NIX_URL =
 const NIX_AUTH = "Basic YVdWU0FMWHBadjpYOGdQSG56TDUyd0ZFZWt1eHNmUTljU2g=";
 const BREW_FORMULA_URL = "https://formulae.brew.sh/api/formula.json";
 const BREW_CASK_URL = "https://formulae.brew.sh/api/cask.json";
+const APPSTORE_SEARCH_URL = "https://itunes.apple.com/search";
 const ARM64_BOTTLE_KEYS = new Set([
   "arm64_sequoia",
   "arm64_sonoma",
@@ -34,11 +35,30 @@ interface BrewResult {
   hasArm64: boolean;
 }
 
+interface AppStoreResult {
+  trackId: number;
+  trackName: string;
+  sellerName: string;
+  description: string;
+  version: string;
+  trackViewUrl: string;
+  artworkUrl: string;
+  formattedPrice: string;
+}
+
+type BrewTypeFilter = "all" | "formula" | "cask";
+
 // ── App state ──────────────────────────────────────────────────────────────
 
 let brewData: BrewResult[] | null = null;
 let brewFetchPromise: Promise<void> | null = null;
 let darwinFilter = true;
+let brewTypeFilter: BrewTypeFilter = "all";
+let storeFilters = {
+  nix: true,
+  brew: true,
+  appstore: true,
+};
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 
@@ -168,7 +188,7 @@ async function searchNix(query: string, aarch64Only: boolean): Promise<NixResult
   });
 }
 
-function filterBrew(query: string, aarch64Only: boolean): BrewResult[] {
+function filterBrew(query: string, aarch64Only: boolean, typeFilter: BrewTypeFilter): BrewResult[] {
   if (!brewData) return [];
   const q = query.toLowerCase();
   const score = (p: BrewResult) => {
@@ -181,6 +201,8 @@ function filterBrew(query: string, aarch64Only: boolean): BrewResult[] {
   return brewData
     .filter((p) => {
       if (aarch64Only && !p.hasArm64) return false;
+      if (typeFilter === "formula" && p.isCask) return false;
+      if (typeFilter === "cask" && !p.isCask) return false;
       return (
         p.token.toLowerCase().includes(q) ||
         p.name.toLowerCase().includes(q) ||
@@ -189,6 +211,23 @@ function filterBrew(query: string, aarch64Only: boolean): BrewResult[] {
     })
     .sort((a, b) => score(a) - score(b))
     .slice(0, 10);
+}
+
+async function searchAppStore(query: string): Promise<AppStoreResult[]> {
+  const url = `${APPSTORE_SEARCH_URL}?term=${encodeURIComponent(query)}&entity=macSoftware&limit=5&country=us`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`App Store search failed: ${res.status}`);
+  const data = await res.json();
+  return (data.results as any[]).map((r) => ({
+    trackId: r.trackId as number,
+    trackName: r.trackName as string,
+    sellerName: (r.sellerName ?? "") as string,
+    description: (r.description ?? "") as string,
+    version: (r.version ?? "") as string,
+    trackViewUrl: (r.trackViewUrl ?? "") as string,
+    artworkUrl: (r.artworkUrl60 ?? r.artworkUrl100 ?? "") as string,
+    formattedPrice: (r.formattedPrice ?? "Free") as string,
+  }));
 }
 
 // ── HTML helpers ───────────────────────────────────────────────────────────
@@ -257,24 +296,57 @@ function brewCard(pkg: BrewResult): string {
     </div>`;
 }
 
+function appStoreCard(pkg: AppStoreResult): string {
+  const cmd = `mas install ${pkg.trackId}`;
+  const desc = pkg.description.length > 150
+    ? pkg.description.slice(0, 150).trimEnd() + "…"
+    : pkg.description;
+  return `
+    <div class="card card-appstore">
+      <div class="card-top">
+        <span class="badge badge-appstore">
+          <img src="/app-store-icon.svg" class="badge-icon" alt="" aria-hidden="true" />
+          app store
+        </span>
+        ${pkg.artworkUrl
+          ? `<img class="app-icon" src="${esc(pkg.artworkUrl)}" alt="" aria-hidden="true" onerror="this.style.display='none'" />`
+          : ""}
+        <span class="pkg-name-app">${esc(pkg.trackName)}</span>
+        ${pkg.formattedPrice ? `<span class="pkg-price">${esc(pkg.formattedPrice)}</span>` : ""}
+      </div>
+      ${pkg.sellerName ? `<p class="pkg-desc" style="font-size:12px;margin-bottom:4px;opacity:.7">${esc(pkg.sellerName)}</p>` : ""}
+      ${desc ? `<p class="pkg-desc">${esc(desc)}</p>` : ""}
+      <div class="install-row">
+        <code class="install-cmd">${esc(cmd)}</code>
+        <button class="copy-btn" data-cmd="${esc(cmd)}">copy</button>
+        <a class="open-btn" href="${esc(pkg.trackViewUrl)}" target="_blank" rel="noopener noreferrer">open</a>
+      </div>
+    </div>`;
+}
+
 // ── Render ─────────────────────────────────────────────────────────────────
 
 function renderResults(
   nix: NixResult[] | null,
   brew: BrewResult[] | null,
   brewLoading: boolean,
-  query: string
+  appStore: AppStoreResult[] | null,
+  appStoreLoading: boolean,
+  query: string,
+  enabledStores: { nix: boolean; brew: boolean; appstore: boolean }
 ): void {
   const el = document.getElementById("results")!;
 
-  if (nix === null && brew === null) {
+  if (nix === null && brew === null && appStore === null) {
     el.innerHTML = `<p class="status-msg">Searching…</p>`;
     return;
   }
 
   const parts: string[] = [];
 
-  if (nix !== null) {
+  if (!enabledStores.nix) {
+    // no-op
+  } else if (nix !== null) {
     if (nix.length === 0) {
       parts.push(
         `<p class="section-label">No Nix packages found for <em>${esc(query)}</em></p>`
@@ -284,7 +356,9 @@ function renderResults(
     }
   }
 
-  if (brewLoading) {
+  if (!enabledStores.brew) {
+    // no-op
+  } else if (brewLoading) {
     parts.push(`<p class="status-msg brew-status">Loading Homebrew data…</p>`);
   } else if (brew !== null) {
     if (brew.length > 0) {
@@ -296,8 +370,22 @@ function renderResults(
     }
   }
 
-  el.innerHTML =
-    parts.join("") || `<p class="status-msg">No results found.</p>`;
+  if (!enabledStores.appstore) {
+    // no-op
+  } else if (appStoreLoading) {
+    parts.push(`<p class="status-msg brew-status">Searching App Store…</p>`);
+  } else if (appStore !== null && appStore.length > 0) {
+    parts.push(
+      `<div class="results-group appstore-section">${appStore.map(appStoreCard).join("")}</div>`
+    );
+  }
+
+  if (!enabledStores.nix && !enabledStores.brew && !enabledStores.appstore) {
+    el.innerHTML = `<p class="status-msg">Select at least one package store filter.</p>`;
+    return;
+  }
+
+  el.innerHTML = parts.join("") || `<p class="status-msg">No results found.</p>`;
 }
 
 // ── App shell ──────────────────────────────────────────────────────────────
@@ -308,7 +396,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
       <h1 class="site-title">package finder</h1>
       <button id="theme-toggle" class="icon-btn" title="Toggle theme">☽</button>
     </div>
-    <p class="site-subtitle">Search Nix and Homebrew packages in one place — Nix preferred</p>
+    <p class="site-subtitle">Search Nix, Homebrew, and App Store packages in one place — Nix preferred</p>
     <div class="search-wrap">
       <input
         class="search-input"
@@ -320,12 +408,61 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
         autofocus
       />
     </div>
-    <div class="filter-row">
-      <button id="darwin-filter" class="filter-chip active" title="Only show packages with aarch64-darwin support">
-        <span class="chip-dot"></span>
-        aarch64-darwin
-      </button>
-    </div>
+    <section class="filter-panel" aria-label="Search filters">
+      <div class="filter-head">
+        <p class="filter-title">Filters</p>
+        <button id="reset-filters" class="filter-reset" type="button">Reset</button>
+      </div>
+      <div class="filter-grid">
+        <div class="filter-group">
+          <p class="filter-label">Package store</p>
+          <div class="filter-row store-filter-row">
+            <button class="filter-chip active" data-store="nix" type="button" aria-pressed="true">
+              <span class="chip-dot"></span>
+              Nix
+            </button>
+            <button class="filter-chip active" data-store="brew" type="button" aria-pressed="true">
+              <span class="chip-dot"></span>
+              Homebrew
+            </button>
+            <button class="filter-chip active" data-store="appstore" type="button" aria-pressed="true">
+              <span class="chip-dot"></span>
+              App Store
+            </button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <p class="filter-label">Platform</p>
+          <div class="filter-row">
+            <button id="darwin-filter" class="filter-chip active" type="button" title="Only show packages with aarch64-darwin support">
+              <span class="chip-dot"></span>
+              aarch64-darwin
+            </button>
+            <button id="all-platforms-filter" class="filter-chip" type="button">
+              <span class="chip-dot"></span>
+              all platforms
+            </button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <p class="filter-label">Homebrew type</p>
+          <div class="filter-row">
+            <button class="filter-chip active brew-type-chip" data-brew-type="all" type="button" aria-pressed="true">
+              <span class="chip-dot"></span>
+              all
+            </button>
+            <button class="filter-chip brew-type-chip" data-brew-type="formula" type="button" aria-pressed="false">
+              <span class="chip-dot"></span>
+              formula
+            </button>
+            <button class="filter-chip brew-type-chip" data-brew-type="cask" type="button" aria-pressed="false">
+              <span class="chip-dot"></span>
+              cask
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   </header>
   <main id="results">
     <p class="status-msg">Start typing to search packages</p>
@@ -356,17 +493,84 @@ document.getElementById("results")!.addEventListener("click", (e) => {
 // Theme toggle
 document.getElementById("theme-toggle")!.addEventListener("click", toggleTheme);
 
-// Darwin filter toggle
-const darwinBtn = document.getElementById("darwin-filter")!;
-darwinBtn.addEventListener("click", () => {
-  darwinFilter = !darwinFilter;
-  darwinBtn.classList.toggle("active", darwinFilter);
-  // Re-run current search with updated filter
+function syncStoreButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>("[data-store]").forEach((btn) => {
+    const key = btn.dataset.store as keyof typeof storeFilters;
+    const active = storeFilters[key];
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function syncBrewTypeButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>(".brew-type-chip").forEach((btn) => {
+    const active = btn.dataset.brewType === brewTypeFilter;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+    btn.disabled = !storeFilters.brew;
+  });
+}
+
+function refreshSearch(): void {
   input.dispatchEvent(new Event("input"));
+}
+
+document.getElementById("search-header")!.addEventListener("click", (e) => {
+  const btn = (e.target as Element).closest("[data-store]") as HTMLButtonElement | null;
+  if (!btn) return;
+  const key = btn.dataset.store as keyof typeof storeFilters;
+  storeFilters = { ...storeFilters, [key]: !storeFilters[key] };
+  syncStoreButtons();
+  syncBrewTypeButtons();
+  refreshSearch();
+});
+
+// Platform filter toggle
+const darwinBtn = document.getElementById("darwin-filter")!;
+const allPlatformsBtn = document.getElementById("all-platforms-filter")!;
+
+function syncPlatformButtons(): void {
+  darwinBtn.classList.toggle("active", darwinFilter);
+  allPlatformsBtn.classList.toggle("active", !darwinFilter);
+}
+
+darwinBtn.addEventListener("click", () => {
+  darwinFilter = true;
+  syncPlatformButtons();
+  refreshSearch();
+});
+
+allPlatformsBtn.addEventListener("click", () => {
+  darwinFilter = false;
+  syncPlatformButtons();
+  refreshSearch();
+});
+
+document.querySelectorAll<HTMLButtonElement>(".brew-type-chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!storeFilters.brew) return;
+    brewTypeFilter = btn.dataset.brewType as BrewTypeFilter;
+    syncBrewTypeButtons();
+    refreshSearch();
+  });
+});
+
+document.getElementById("reset-filters")!.addEventListener("click", () => {
+  darwinFilter = true;
+  brewTypeFilter = "all";
+  storeFilters = { nix: true, brew: true, appstore: true };
+  syncStoreButtons();
+  syncBrewTypeButtons();
+  syncPlatformButtons();
+  refreshSearch();
 });
 
 // Search
 const input = document.getElementById("search") as HTMLInputElement;
+syncStoreButtons();
+syncBrewTypeButtons();
+syncPlatformButtons();
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeQuery = "";
 
@@ -386,30 +590,72 @@ input.addEventListener("input", () => {
     activeQuery = query;
     const thisQuery = query;
     const thisFilter = darwinFilter;
+    const thisBrewType = brewTypeFilter;
+    const enabledStores = { ...storeFilters };
 
-    let nixResults: NixResult[] | null = null;
-    let brewResults: BrewResult[] | null = null;
+    if (!enabledStores.nix && !enabledStores.brew && !enabledStores.appstore) {
+      renderResults([], [], false, [], false, thisQuery, enabledStores);
+      return;
+    }
 
-    renderResults(null, null, false, thisQuery);
+    let nixResults: NixResult[] | null = enabledStores.nix ? null : [];
+    let brewResults: BrewResult[] | null = enabledStores.brew ? null : [];
+    let appStoreResults: AppStoreResult[] | null = enabledStores.appstore ? null : [];
 
-    const nixPromise = searchNix(thisQuery, thisFilter).then((r) => {
-      if (activeQuery !== thisQuery) return;
-      nixResults = r;
-      const brewStillLoading = brewFetchPromise !== null && brewData === null;
-      renderResults(nixResults, brewResults, brewStillLoading, thisQuery);
-    });
+    renderResults(
+      nixResults,
+      brewResults,
+      enabledStores.brew && brewData === null,
+      appStoreResults,
+      enabledStores.appstore,
+      thisQuery,
+      enabledStores
+    );
 
-    const brewPromise = (async () => {
-      if (brewFetchPromise) await brewFetchPromise;
-      if (activeQuery !== thisQuery) return;
-      brewResults = filterBrew(thisQuery, thisFilter);
-      renderResults(nixResults, brewResults, false, thisQuery);
-    })();
+    const tasks: Promise<void>[] = [];
 
-    await Promise.allSettled([nixPromise, brewPromise]);
+    if (enabledStores.nix) {
+      tasks.push(
+        searchNix(thisQuery, thisFilter).then((r) => {
+          if (activeQuery !== thisQuery) return;
+          nixResults = r;
+          const brewStillLoading = enabledStores.brew && brewFetchPromise !== null && brewData === null;
+          renderResults(nixResults, brewResults, brewStillLoading, appStoreResults, appStoreResults === null, thisQuery, enabledStores);
+        })
+      );
+    }
+
+    if (enabledStores.brew) {
+      tasks.push((async () => {
+        if (brewFetchPromise) await brewFetchPromise;
+        if (activeQuery !== thisQuery) return;
+        brewResults = filterBrew(thisQuery, thisFilter, thisBrewType);
+        renderResults(nixResults, brewResults, false, appStoreResults, appStoreResults === null, thisQuery, enabledStores);
+      })());
+    }
+
+    if (enabledStores.appstore) {
+      tasks.push((async () => {
+        const r = await searchAppStore(thisQuery);
+        if (activeQuery !== thisQuery) return;
+        appStoreResults = r;
+        const brewStillLoading = enabledStores.brew && brewFetchPromise !== null && brewData === null;
+        renderResults(nixResults, brewResults, brewStillLoading, appStoreResults, false, thisQuery, enabledStores);
+      })());
+    }
+
+    await Promise.allSettled(tasks);
 
     if (activeQuery === thisQuery) {
-      renderResults(nixResults ?? [], brewResults ?? [], false, thisQuery);
+      renderResults(
+        nixResults ?? [],
+        brewResults ?? [],
+        false,
+        appStoreResults ?? [],
+        false,
+        thisQuery,
+        enabledStores
+      );
     }
   }, 300);
 });

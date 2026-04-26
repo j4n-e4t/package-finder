@@ -12,6 +12,9 @@
   --brew-color: #b45309;
   --brew-bg: rgba(251, 191, 36, 0.1);
   --brew-border: rgba(217, 119, 6, 0.3);
+  --appstore-color: #0071e3;
+  --appstore-bg: rgba(0, 113, 227, 0.08);
+  --appstore-border: rgba(0, 113, 227, 0.3);
   --success: #16a34a;
   --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
 
@@ -34,6 +37,9 @@
     --brew-color: #fbbf24;
     --brew-bg: rgba(251, 191, 36, 0.1);
     --brew-border: rgba(251, 191, 36, 0.3);
+    --appstore-color: #3b9eff;
+    --appstore-bg: rgba(59, 158, 255, 0.1);
+    --appstore-border: rgba(59, 158, 255, 0.3);
     --shadow: 0 1px 3px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.25);
   }
 }
@@ -52,6 +58,9 @@ html[data-theme="dark"] {
   --brew-color: #fbbf24;
   --brew-bg: rgba(251, 191, 36, 0.1);
   --brew-border: rgba(251, 191, 36, 0.3);
+  --appstore-color: #3b9eff;
+  --appstore-bg: rgba(59, 158, 255, 0.1);
+  --appstore-border: rgba(59, 158, 255, 0.3);
   --shadow: 0 1px 3px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.25);
 }
 
@@ -69,6 +78,9 @@ html[data-theme="light"] {
   --brew-color: #b45309;
   --brew-bg: rgba(251, 191, 36, 0.1);
   --brew-border: rgba(217, 119, 6, 0.3);
+  --appstore-color: #0071e3;
+  --appstore-bg: rgba(0, 113, 227, 0.08);
+  --appstore-border: rgba(0, 113, 227, 0.3);
   --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
 }
 
@@ -171,12 +183,80 @@ body {
   }
 }
 
-/* ── Filter row ──────────────────────────────────────────────────────────── */
+/* ── Filters ──────────────────────────────────────────────────────────────── */
+.filter-panel {
+  margin-top: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 85% -20%, var(--accent-bg), transparent 42%),
+    var(--bg2);
+}
+
+.filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.filter-title {
+  margin: 0;
+  color: var(--text-h);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.filter-reset {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background: var(--bg);
+  }
+}
+
+.filter-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.filter-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 8px 9px 9px;
+}
+
+.filter-label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .filter-row {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 7px;
   flex-wrap: wrap;
+}
+
+.store-filter-row {
+  gap: 8px;
 }
 
 .filter-chip {
@@ -185,19 +265,20 @@ body {
   gap: 6px;
   font-size: 12px;
   font-family: var(--sans);
-  font-weight: 500;
-  padding: 4px 11px 4px 8px;
+  font-weight: 600;
+  padding: 5px 11px 5px 8px;
   border: 1.5px solid var(--border);
-  border-radius: 20px;
+  border-radius: 999px;
   background: var(--bg2);
   color: var(--text);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.15s;
   letter-spacing: 0.1px;
 
   &:hover {
     border-color: var(--accent-border);
     color: var(--text-h);
+    transform: translateY(-1px);
   }
 
   &.active {
@@ -208,6 +289,12 @@ body {
     .chip-dot {
       background: var(--accent);
     }
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
   }
 }
 
@@ -406,6 +493,64 @@ body {
   }
 }
 
+.card-appstore:hover {
+  border-color: var(--appstore-border);
+}
+
+.badge-appstore {
+  background: var(--appstore-bg);
+  color: var(--appstore-color);
+  border: 1px solid var(--appstore-border);
+}
+
+.appstore-section {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.app-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.pkg-name-app {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.pkg-price {
+  font-size: 11px;
+  color: var(--text);
+  margin-left: auto;
+  opacity: 0.75;
+}
+
+.open-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-family: var(--sans);
+  font-weight: 500;
+  padding: 5px 11px;
+  border: 1.5px solid var(--appstore-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--appstore-color);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--appstore-bg);
+  }
+}
+
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 500px) {
   #search-header {
@@ -418,5 +563,9 @@ body {
 
   .card {
     padding: 11px 13px;
+  }
+
+  .filter-panel {
+    padding: 10px;
   }
 }

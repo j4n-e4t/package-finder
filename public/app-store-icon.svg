@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="App Store">
+  <defs>
+    <linearGradient id="appStoreBlue" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2ea0ff" />
+      <stop offset="1" stop-color="#0071e3" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#appStoreBlue)" />
+  <path d="M22.9 49.1a3 3 0 0 1-2.6-4.5l16-27.7a3 3 0 1 1 5.2 3l-16 27.7a3 3 0 0 1-2.6 1.5Zm18.2 0a3 3 0 0 1-2.6-1.5L22.5 19.9a3 3 0 1 1 5.2-3l16 27.7a3 3 0 0 1-2.6 4.5Z" fill="#fff"/>
+  <rect x="17" y="43" width="30" height="5.8" rx="2.9" fill="#fff"/>
+</svg>
