@@ -180,7 +180,10 @@ function NixCard({ pkg }: { pkg: NixSearchResult }) {
           {pkg.name}
         </span>
       </div>
-      <p className={cardMetaClass}>{nixKindLabel(pkg.kind)}</p>
+      <p className={cardMetaClass}>
+        {nixKindLabel(pkg.kind)}
+        {pkg.version && <span className="ml-1.5 normal-case tracking-normal">{pkg.version}</span>}
+      </p>
       {pkg.description && <p className={pkgDescClass}>{pkg.description}</p>}
       <div className={installRowClass}>
         <code className={installCmdClass}>{pkg.installCommand}</code>
@@ -214,7 +217,10 @@ function BrewCard({ pkg }: { pkg: BrewSearchResult }) {
           {pkg.name}
         </span>
       </div>
-      <p className={cardMetaClass}>{pkg.brewType}</p>
+      <p className={cardMetaClass}>
+        {pkg.brewType}
+        {pkg.version && <span className="ml-1.5 normal-case tracking-normal">{pkg.version}</span>}
+      </p>
       {pkg.description && <p className={pkgDescClass}>{pkg.description}</p>}
       <div className={installRowClass}>
         <code className={installCmdClass}>{pkg.installCommand}</code>
@@ -251,7 +257,10 @@ function AppStoreCard({ pkg }: { pkg: AppStoreSearchResult }) {
           {pkg.name}
         </span>
       </div>
-      <p className={cardMetaClass}>app store</p>
+      <p className={cardMetaClass}>
+        app store
+        {pkg.version && <span className="ml-1.5 normal-case tracking-normal">{pkg.version}</span>}
+      </p>
       {pkg.sellerName && (
         <p className="m-0 mb-1 text-[12px] text-fg leading-[1.5] line-clamp-2 opacity-70">
           {pkg.sellerName}
